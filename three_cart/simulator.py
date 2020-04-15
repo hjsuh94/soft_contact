@@ -7,11 +7,10 @@ from PIL import Image, ImageTk, ImageDraw
 import cv2
 
 class CartSimulator():
-    def __init__(self, gui=True, video=False, video_name="run"):
+    def __init__(self, gui=True, video=False):
 
         self.gui = gui
         self.video = video
-        self.video_name = video_name
 
         # State Variables defined as: [x1, v1, x2, v2, x3, v3]
         self.x = np.zeros(6).astype(np.double)
@@ -24,11 +23,6 @@ class CartSimulator():
                        'h': 0.01} # time step
 
         self.step_count = 0
-        self.traj = None
-
-        self.video_dir = "video"
-        if not (os.path.isdir(self.video_dir)):
-            os.mkdir(self.video_dir)
 
         if(self.gui):
             # GUI Parameters
@@ -77,6 +71,7 @@ class CartSimulator():
             self.render()
             
     def render(self):
+        # sry for this mess....
         bbox_1 = [self.x[0] - self.params['d'] / 2,
                   self.height / 2 - self.params['w'] / 2,
                   self.x[0] + self.params['d'] / 2,
@@ -114,7 +109,8 @@ class CartSimulator():
         for i in range(len(self.img_array)):
             out.write(self.img_array[i])
         out.release
-        
+
+# Example usage. Will be gone soon and separated into another file.
 C = CartSimulator(gui=True, video=True)
 timesteps = 10000
 init_state = np.array([100, 0, 300, 0, 400, 0]).astype(np.double)
