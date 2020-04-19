@@ -381,31 +381,3 @@ for t in range(timesteps):
     p_r_past = p_r
 
 C.save_video("test.avi")
-
-'''
-plt.figure()
-plt.plot(range(timesteps), lambda_trajectory[0,:])
-plt.plot(range(timesteps), lambda_trajectory[1,:])
-plt.legend(['Contact 1', 'Contact 2'])
-plt.show()
-
-plt.figure()
-plt.plot(range(timesteps), x_trajectory[0,:])
-plt.plot(range(timesteps), x_trajectory[2,:])
-plt.plot(range(timesteps), x_trajectory[4,:])
-plt.legend(['Cart 1', 'Cart 2', 'Cart 3'])
-plt.show()
-'''
-
-
-
-        
-
-        
-
-
-
-    
-        
-
-        
