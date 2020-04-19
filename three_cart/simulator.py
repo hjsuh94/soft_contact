@@ -110,35 +110,6 @@ class CartSimulator():
             out.write(self.img_array[i])
         out.release
 
-# Example usage. Will be gone soon and separated into another file.
-C = CartSimulator(gui=True, video=True)
-timesteps = 10000
-init_state = np.array([100, 0, 300, 0, 400, 0]).astype(np.double)
-x_trajectory = np.zeros((6, timesteps))
-x_trajectory[:,0] = init_state
-lambda_trajectory = np.zeros((2, timesteps))
-C.set_state(init_state)
-
-for t in range(timesteps):
-    C.step([5,-5])
-    x_trajectory[:,t] = C.get_state()
-    lambda_trajectory[:,t] = C.get_contact()
-
-C.save_video("test.avi")
-
-plt.figure()
-plt.plot(range(timesteps), lambda_trajectory[0,:])
-plt.plot(range(timesteps), lambda_trajectory[1,:])
-plt.legend(['Contact 1', 'Contact 2'])
-plt.show()
-
-plt.figure()
-plt.plot(range(timesteps), x_trajectory[0,:])
-plt.plot(range(timesteps), x_trajectory[2,:])
-plt.plot(range(timesteps), x_trajectory[4,:])
-plt.legend(['Cart 1', 'Cart 2', 'Cart 3'])
-plt.show()
-
 
 
 
