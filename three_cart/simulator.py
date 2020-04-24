@@ -5,6 +5,7 @@ import scipy as sp
 import matplotlib.pyplot as plt
 from PIL import Image, ImageTk, ImageDraw
 import cv2
+import time
 
 class CartSimulator():
     def __init__(self, gui=True, video=False):
@@ -20,7 +21,8 @@ class CartSimulator():
                        'k': 10.0,  # elasticity
                        'd': 80.,    # cart length
                        'w': 50.,    # cart height (just for visualization) 
-                       'h': 0.01} # time step
+                       'h': 0.01   # time step
+                       't': 0.0}   # sleep time before redrawing on canvas
 
         self.step_count = 0
 
@@ -42,10 +44,10 @@ class CartSimulator():
         return self.contact
 
     def set_state(self, x):
-        self.x = x
+        self.x = x.copy()
 
     def set_parameters(self, param_name, param_value):
-        self.parameters[param_name] = param_value
+        self.params[param_name] = param_value
 
     # Semi-implicit time-stepping for dynamics integration
     def step(self, u):
@@ -69,6 +71,7 @@ class CartSimulator():
 
         if(self.gui):
             self.render()
+            time.sleep(self.params['t'])
             
     def render(self):
         # sry for this mess....
@@ -102,6 +105,8 @@ class CartSimulator():
             draw.rectangle([bbox_3[0], bbox_3[1], bbox_3[2], bbox_3[3]], outline='blue')
             cv_image = np.array(image)
             self.img_array.append(cv_image)
+
+
 
     def save_video(self, video_name):
         out = cv2.VideoWriter(video_name, cv2.VideoWriter_fourcc(*'MJPG'), 300,
