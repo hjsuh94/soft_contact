@@ -1,0 +1,22 @@
+import gurobipy as gp
+from gurobipy import GRB
+import numpy as np
+import matplotlib.pyplot as plt
+
+T = 100
+ = 0.01
+
+prog = gp.Model("MPCTest")
+prog.params.NonConvex = 2
+
+q = prog.addVars(T + 1, 1, name='q')
+v = prog.addVars(T + 1, 1, name='v')
+u = prog.addVars(T, 1, name='u')
+
+objective = 0
+
+for t in range(T):
+    
+    objective += u[t,0] * u[t,0]
+
+    prog.addConstr(q[t+1,0] = q[t,0] + timestep * 

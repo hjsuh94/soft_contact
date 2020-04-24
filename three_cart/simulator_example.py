@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 
 C = simulator.CartSimulator(gui=True, video=True)
 timesteps = 10000
-init_state = np.array([100, 0, 300, 0, 400, 0]).astype(np.double)
+init_state = np.array([1, 3, 4, 0, 0, 0]).astype(np.double)
 x_trajectory = np.zeros((6, timesteps))
 x_trajectory[:,0] = init_state
 
@@ -12,7 +12,7 @@ lambda_trajectory = np.zeros((2, timesteps))
 C.set_state(init_state)
 
 for t in range(timesteps):
-    C.step([5, -5]) # Control input
+    C.step([0.1, -0.1]) # Control input
     x_trajectory[:,t] = C.get_state()
     lambda_trajectory[:,t] = C.get_contact()
 
