@@ -17,20 +17,12 @@ class CartSimulator():
         self.x = np.zeros(6).astype(np.double)
         self.contact = np.zeros(2).astype(np.double)
         self.params = {'m': 1.,  # mass
-<<<<<<< HEAD
                        'c': 3.0,  # viscosity
                        'k': 10.0,  # elasticity
-                       'd': 80.,    # cart length
-                       'w': 50.,    # cart height (just for visualization) 
-                       'h': 0.01   # time step
-                       't': 0.0}   # sleep time before redrawing on canvas
-=======
-                       'c': 1.0,  # viscosity
-                       'k': 500.0,  # elasticity
                        'd': 0.5,    # cart length
                        'w': 0.5,    # cart height (just for visualization) 
-                       'h': 0.01} # time step
->>>>>>> d6cc1663c7457e6c120fa21d3c78b352c01ada53
+                       'h': 0.01,   # time step
+                       't': 0.0}   # sleep time before redrawing on canvas
 
         self.step_count = 0
 
