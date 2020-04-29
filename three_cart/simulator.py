@@ -21,7 +21,7 @@ class CartSimulator():
                        'k': 10.0,  # elasticity
                        'd': 80.,    # cart length
                        'w': 50.,    # cart height (just for visualization) 
-                       'h': 0.01   # time step
+                       'h': 0.01,   # time step
                        't': 0.0}   # sleep time before redrawing on canvas
 
         self.step_count = 0

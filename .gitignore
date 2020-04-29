@@ -1,2 +1,4 @@
 .ipynb_checkpoints/
 three_cart/__pycache__/
+*.avi
+*.pyc
