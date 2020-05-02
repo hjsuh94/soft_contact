@@ -1,0 +1,9 @@
+import numpy as np
+
+class Trajectory():
+    def __init__(self, T, x, f, u):
+        self.T = T
+        self.x = x # size = T x (nq)
+        self.u = u # size = T x (nu)
+        self.f = f # size = T x (nf)
+        
