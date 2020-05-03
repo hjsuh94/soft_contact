@@ -30,8 +30,8 @@ class CartSimulator():
         self.nf = 2
         
         self.params = {'m': 1.,  # mass
-                       'c': 5.0,  # viscosity
-                       'k': 10.0,  # elasticity
+                       'c': 3.0,  # viscosity
+                       'k': 30.0,  # elasticity
                        'd': 0.5,    # cart length
                        'w': 0.5,    # cart height (just for visualization) 
                        'h': 0.01,   # time step
@@ -103,7 +103,7 @@ class CartSimulator():
         T = inputs.shape[0]
 
         x_traj = np.zeros((T + 1, 2 * self.nq))
-        f_traj = np.zeros((T + 1, self.nf))
+        f_traj = np.zeros((T, self.nf))
         u_traj = inputs  # must be T x nu 
         init_time = time.time()
 

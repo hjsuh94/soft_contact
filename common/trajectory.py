@@ -13,7 +13,7 @@ class Trajectory():
         - sim    : what is this a trajectory for?
         -   T    : how long is this trajectory?
         - x_traj : (T + 1) x (2 * nq) numpy array of system configuration and velocities
-        - f_traj : (T + 1) x nf numpy array of system contact forces
+        - f_traj : T x nf numpy array of system contact forces
         - u_traj : T x nu numpy array of system inputs 
 
         Optional arguments:
@@ -58,7 +58,7 @@ class Trajectory():
         plt.subplot(2,2,3)
         plt.title('System Forces')
         for i in range(self.sim.nf):
-            plt.plot(range(self.T+1), self.f_traj[:,i])
+            plt.plot(range(self.T), self.f_traj[:,i])
             
         plt.subplot(2,2,4)
         plt.title('System Inputs')

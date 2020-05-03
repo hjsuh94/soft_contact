@@ -1,204 +1,196 @@
 import simulator
 import numpy as np
 import matplotlib.pyplot as plt
-import time
+import time, os, sys
 
 from pydrake.solvers.mathematicalprogram import MathematicalProgram, Solve
 from pydrake.all import eq, le, ge
 from pydrake.solvers.ipopt import IpoptSolver
 from pydrake.solvers.snopt import SnoptSolver
 
-class LCPCtrl():
-    def __init__(self, sim):
+sys.path.insert(0, os.getcwd())
+from common.trajectory import Trajectory
+from common.utils import snopt_status
 
-        self.sim = sim
-        self.params = self.sim.params
-        self.solver = "snopt"
+def LCPtrajopt(sim, xi, xf, T, options=None):
+    ''' 
+    Function that does trajectory optimization with LCP Approaches. 
 
-        self.contact_max = 5
-        self.input_max = 10
+    Options should be a dictionary containing the following:
+    - initial_guess : initial guess to be used (Trajectory Class)
+    - tol           : tolerance for lcp inequality constraint (semipositive float). Default 0.0
+    - solver        : solver to be used. Support "snopt" or "ipopt", default is "snopt"
+    - contact_max   : maximum value for contact. Defaults to None. 
+    - input_max     : maximum value for input. Defaults to None.
+    '''
+    #---------------------------------------------------------------------------
+    # Define helper functions here
+    #---------------------------------------------------------------------------
+    def pack_trajectory(sim, q_traj, v_traj, f_traj, u_traj, compute_time):
+        '''
+        Pack trajectory from q,v,f,u to Trajectory class
+        '''
+        T = u_traj.shape[0]
+        x_traj = np.hstack((q_traj, v_traj))
+        traj = Trajectory(sim, T, x_traj, f_traj, u_traj, compute_time)
+        return traj
 
-        # Ctrl Parameters
-        self.T = 500 # Number of timesteps to optimize for
-        self.nq = 3 # Number of joints
-        self.nu = 2 # Number of inputs
-        self.nf = 2 # Number of contact forces
-        self.xd = np.array([0, 0, 0, 0, 0, 0]).astype(np.double)
-
-    def set_xd(self, xd):
-        self.xd = xd
-
-    def compute_input(self, x, xd, initial_guess=None, tol=0.0):
-        prog = MathematicalProgram()
-
-        # Joint configuration states & Contact forces
-        q = prog.NewContinuousVariables(rows=self.T + 1, cols=self.nq, name='q')
-        v = prog.NewContinuousVariables(rows=self.T + 1, cols=self.nq, name='v')
-        u = prog.NewContinuousVariables(rows=self.T, cols=self.nu, name='u')
-        contact = prog.NewContinuousVariables(rows=self.T, cols=self.nf, name='lambda')
-
-        # 
-        alpha = prog.NewContinuousVariables(rows=self.T, cols=2, name='alpha')
-        beta = prog.NewContinuousVariables(rows=self.T, cols=2, name='beta')
-
-        # Add Initial Condition Constraint
-        prog.AddConstraint(eq(q[0], np.array(x[0:3])))
-        prog.AddConstraint(eq(v[0], np.array(x[3:6])))
-
-        # Add Final Condition Constraint
-        prog.AddConstraint(eq(q[self.T], np.array(xd[0:3])))
-        prog.AddConstraint(eq(v[self.T], np.array(xd[3:6])))        
-        
-        # Add Dynamics Constraints
-        for t in range(self.T):
-            # Add Dynamics Constraints
-            prog.AddConstraint(eq(q[t+1], (q[t] + self.sim.params['h'] * v[t+1])))
-            
-            prog.AddConstraint(v[t+1,0] == (v[t,0] + self.sim.params['h'] * (
-                -self.sim.params['c'] * v[t,0] - contact[t,0] + u[t,0])))
-            prog.AddConstraint(v[t+1,1] == (v[t,1] + self.sim.params['h'] * (
-                -self.sim.params['c'] * v[t,1] + contact[t,0] - contact[t,1])))
-            prog.AddConstraint(v[t+1,2] == (v[t,2] + self.sim.params['h'] * (
-                -self.sim.params['c'] * v[t,2] + contact[t,1] + u[t,1])))
-
-            # Add Contact Constraints
-            prog.AddConstraint(ge(alpha[t], 0))
-            prog.AddConstraint(ge(beta[t], 0))
-            prog.AddConstraint(alpha[t,0] == contact[t,0])
-            prog.AddConstraint(alpha[t,1] == contact[t,1])
-            prog.AddConstraint(beta[t,0] == (contact[t,0] + self.sim.params['k'] * (
-                q[t,1] - q[t,0] - self.sim.params['d'])))
-            prog.AddConstraint(beta[t,1] == (contact[t,1] + self.sim.params['k'] * (
-                q[t,2] - q[t,1] - self.sim.params['d'])))
-
-            # Complementarity constraints. Start with relaxed version and start constraining.
-            prog.AddConstraint(alpha[t,0] * beta[t,0] <= tol)
-            prog.AddConstraint(alpha[t,1] * beta[t,1] <= tol)            
-            
-            # Add Input Constraints and Contact Constraints
-            prog.AddConstraint(le(contact[t], self.contact_max))
-            prog.AddConstraint(ge(contact[t], -self.contact_max))
-            prog.AddConstraint(le(u[t], self.input_max))
-            prog.AddConstraint(ge(u[t], -self.input_max))
-            
-            # Add Costs
-            prog.AddCost(u[t].dot(u[t]))
-
-        # Set Initial Guess as empty. Otherwise, start from last solver iteration.
-        if (type(initial_guess) == type(None)):
-            initial_guess = np.empty(prog.num_vars())
-
-            # Populate initial guess by linearly interpolating between initial
-            # and final states
-            #qinit = np.linspace(x[0:3], xd[0:3], self.T + 1)
-            qinit = np.tile(np.array(x[0:3]), (self.T + 1, 1))
-            vinit = np.tile(np.array(x[3:6]), (self.T + 1, 1))
-            uinit = np.tile(np.array([0,0]), (self.T, 1))
-            finit = np.tile(np.array([0,0]), (self.T, 1))
-
-            prog.SetDecisionVariableValueInVector(q, qinit, initial_guess)
-            prog.SetDecisionVariableValueInVector(v, vinit, initial_guess)
-            prog.SetDecisionVariableValueInVector(u, uinit, initial_guess)
-            prog.SetDecisionVariableValueInVector(contact, finit, initial_guess)        
-
-        # Solve the program
-        if (self.solver == "ipopt"):
-            solver = IpoptSolver()
-        elif (self.solver == "snopt"):
-            solver = SnoptSolver()
-            
-        result = solver.Solve(prog, initial_guess)
-
-        if (self.solver == "ipopt"):
-            print("Ipopt Solver Status: ", result.get_solver_details().status,
-              ", meaning ", result.get_solver_details().ConvertStatusToString())
-        elif (self.solver == "snopt"):
-            val = result.get_solver_details().info
-            status = self.snopt_status(val)
-            print("Snopt Solver Status: ", result.get_solver_details().info,
-                  ", meaning ", status)
-
-        sol = result.GetSolution()
-        q_opt = result.GetSolution(q)
-        v_opt = result.GetSolution(v)
-        u_opt = result.GetSolution(u)
-        f_opt = result.GetSolution(contact)
-            
-        return sol, q_opt, v_opt, u_opt, f_opt
-
-    def step(self):
-        ''' Observes the simulator state and do control based on those states'''
-        # 1. Get the current state from the simulator.
-        x = self.sim.get_state() # [x1, v1, x2, v2, x3, v3]
-        u = self.compute_input(x)
-        self.sim.step(u)
-
-    def snopt_status(self, val):
-        if (val == 1):
-            status = "optimality conditions satisfied"
-        elif (val == 2):
-            status = "feasible point found"
-        elif (val == 13):
-            status = "nonlinear infeasibilities minimized"
-        elif (val == 14):
-            status = "infeasibilities minimized"
-        elif (val == 15):
-            status = "infeasible linear constraints in QP subproblem"
-        elif (val == 41):
-            status = "current point cannot be improved"
-        elif (val == 43):
-            status = "cannot satisfy the general constraints"
-        else:
-            status = "unknown"
-
-        return status
-                     
-
-if __name__ == '__main__':
-    S = simulator.CartSimulator(gui=True, video=True)
-    init_state = np.array([2, 3, 4, 0, 0, 0]).astype(np.double)
-    des_state = np.array([0.5, 1.5, 2.5, 0, 0, 0]).astype(np.double)
-    S.set_state(init_state)
-
-    Ctrl = LCPCtrl(S)
-    initial_guess = None
-
-    # Successive relaxation
-    # Do this once to see if initially converges.
-    # Ctrl.compute_input(init_state, des_state, initial_guess, 0.0)
+    def unpack_trajectory(sim, traj):
+        '''
+        Unpack trajectory from Trajectory class fo q,v,f,u notation
+        '''
+        x_traj = traj.x_traj
+        q_traj = x_traj[:,0:sim.nq]
+        v_traj = x_traj[:,sim.nq:(2*sim.nq)]
+        f_traj = traj.f_traj
+        u_traj = traj.u_traj
+        return q_traj, v_traj, f_traj, u_traj
     
-    tol_list = np.linspace(4.0, 0.0, 4)
-    for i in range(len(tol_list)):
-        print("Iteration " + str(i) + ". Current Tolerance: " + str(tol_list[i]))
-        sol, q_opt, v_opt, u_opt, f_opt  = Ctrl.compute_input(
-            init_state, des_state, initial_guess, tol_list[i])
+    def generate_initial_traj(sim, xi, xf, T):
+        ''' 
+        Use default initial guess with stationary assumption
+        '''
+        qinit = np.tile(np.array(xi[0:3]), (T + 1, 1))
+        vinit = np.tile(np.array(xi[3:6]), (T + 1, 1))
+        uinit = np.tile(np.array([0,0]), (T, 1))
+        finit = np.tile(np.array([0,0]), (T, 1))
+
+        traj = pack_trajectory(sim, qinit, vinit, uinit, finit, None)
+        return traj
         
-        initial_guess = sol
 
-    plt.figure()
-    plt.plot(range(Ctrl.T + 1), q_opt[:,0])
-    plt.plot(range(Ctrl.T + 1), q_opt[:,1])
-    plt.plot(range(Ctrl.T + 1), q_opt[:,2])
-    plt.legend(['Cart 1', 'Cart 2', 'Cart 3'])
-    plt.show()
+    #---------------------------------------------------------------------------
+    # 1. Set default parameters options.
+    #---------------------------------------------------------------------------
 
-    plt.figure()
-    plt.plot(range(Ctrl.T), u_opt[:,0])
-    plt.plot(range(Ctrl.T), u_opt[:,1])
-    plt.show()
+    if (options == None) or (options['tol'] == None):
+        tol = 0.0
+    else:
+        tol = options['tol']
+    if (options == None) or (options['solver'] == None):
+        solver = "snopt"
+    else:
+        solver = options['solver']
+    if (options == None) or (options['contact_max'] == None):
+        contact_max = None
+    else:
+        contact_max = options['contact_max']
+    if (options == None) or (options['input_max'] == None):
+        input_max = None
+    else:
+        input_max = options['input_max']
+    if (options == None) or (options['initial_guess'] == None):
+        initial_guess = generate_initial_traj(sim, xi, xf, T)
+    else:
+        initial_guess = options['initial_guess']
 
-    plt.figure()
-    plt.plot(range(Ctrl.T), f_opt[:,0])
-    plt.plot(range(Ctrl.T), f_opt[:,1])
-    plt.show()
+    qinit, vinit, finit, uinit = unpack_trajectory(sim, initial_guess)
 
-    # Open Loop Visualization
+    #---------------------------------------------------------------------------
+    # 2. Define program and constraints
+    #---------------------------------------------------------------------------
+    prog = MathematicalProgram()
 
-    for t in range(Ctrl.T):
-        S.step(u_opt[t,:])
-        time.sleep(0.01)
+    # Joint configuration states & Contact forces
+    q = prog.NewContinuousVariables(rows=T + 1, cols=sim.nq, name='q')
+    v = prog.NewContinuousVariables(rows=T + 1, cols=sim.nq, name='v')
+    u = prog.NewContinuousVariables(rows=T, cols=sim.nu, name='u')
+    contact = prog.NewContinuousVariables(rows=T, cols=sim.nf, name='lambda')
+    alpha = prog.NewContinuousVariables(rows=T, cols=2, name='alpha')
+    beta = prog.NewContinuousVariables(rows=T, cols=2, name='beta')
 
-    S.save_video("test.avi")
+    # Add Initial Condition Constraint
+    prog.AddConstraint(eq(q[0], np.array(xi[0:3])))
+    prog.AddConstraint(eq(v[0], np.array(xi[3:6])))
+
+    # Add Final Condition Constraint
+    prog.AddConstraint(eq(q[T], np.array(xf[0:3])))
+    prog.AddConstraint(eq(v[T], np.array(xf[3:6])))        
+
+    # Add Dynamics Constraints
+    for t in range(T):
+        # Add Dynamics Constraints
+        prog.AddConstraint(eq(q[t+1], (q[t] + sim.params['h'] * v[t+1])))
+
+        prog.AddConstraint(v[t+1,0] == (v[t,0] + sim.params['h'] * (
+            -sim.params['c'] * v[t,0] - contact[t,0] + u[t,0])))
+        prog.AddConstraint(v[t+1,1] == (v[t,1] + sim.params['h'] * (
+            -sim.params['c'] * v[t,1] + contact[t,0] - contact[t,1])))
+        prog.AddConstraint(v[t+1,2] == (v[t,2] + sim.params['h'] * (
+            -sim.params['c'] * v[t,2] + contact[t,1] + u[t,1])))
+
+        # Add Contact Constraints
+        prog.AddConstraint(ge(alpha[t], 0))
+        prog.AddConstraint(ge(beta[t], 0))
+        prog.AddConstraint(alpha[t,0] == contact[t,0])
+        prog.AddConstraint(alpha[t,1] == contact[t,1])
+        prog.AddConstraint(beta[t,0] == (contact[t,0] + sim.params['k'] * (
+            q[t,1] - q[t,0] - sim.params['d'])))
+        prog.AddConstraint(beta[t,1] == (contact[t,1] + sim.params['k'] * (
+            q[t,2] - q[t,1] - sim.params['d'])))
+
+        # Complementarity constraints. Start with relaxed version and start constraining.
+        prog.AddConstraint(alpha[t,0] * beta[t,0] <= tol)
+        prog.AddConstraint(alpha[t,1] * beta[t,1] <= tol)            
+
+        # Add Input Constraints and Contact Constraints
+        if (contact_max is not None):
+            prog.AddConstraint(le(contact[t], contact_max))
+            prog.AddConstraint(ge(contact[t], -contact_max))
+        if (input_max is not None):
+            prog.AddConstraint(le(u[t], input_max))
+            prog.AddConstraint(ge(u[t], -input_max))
+
+        # Add Costs
+        prog.AddCost(u[t].dot(u[t]))
+
+    #---------------------------------------------------------------------------
+    # 3. Set Initial guess of the program
+    #---------------------------------------------------------------------------
+
+    initial_guess = np.empty(prog.num_vars())
+    prog.SetDecisionVariableValueInVector(q, qinit, initial_guess)
+    prog.SetDecisionVariableValueInVector(v, vinit, initial_guess)
+    prog.SetDecisionVariableValueInVector(u, uinit, initial_guess)
+    #prog.SetDecisionVariableValueInVector(contact, finit, initial_guess)
+
+    #---------------------------------------------------------------------------
+    # 4. Solve the program
+    #---------------------------------------------------------------------------
+    
+    # Solve the program
+    if (solver == "ipopt"):
+        solver_cls = IpoptSolver()
+    elif (solver == "snopt"):
+        solver_cls = SnoptSolver()
+
+    init_time = time.time()
+    result = solver_cls.Solve(prog, initial_guess)
+    solver_time = time.time() - init_time
+
+    if (solver == "ipopt"):
+        print("Ipopt Solver Status: ", result.get_solver_details().status,
+          ", meaning ", result.get_solver_details().ConvertStatusToString())
+    elif (solver == "snopt"):
+        val = result.get_solver_details().info
+        status = snopt_status(val)
+        print("Snopt Solver Status: ", result.get_solver_details().info,
+              ", meaning ", status)
+
+
+
+    #---------------------------------------------------------------------------
+    # 5. Pack the solution and return trajectory.
+    #---------------------------------------------------------------------------
+
+    q_opt = result.GetSolution(q)
+    v_opt = result.GetSolution(v)
+    f_opt = result.GetSolution(contact)    
+    u_opt = result.GetSolution(u)
+    traj_opt = pack_trajectory(sim, q_opt, v_opt, f_opt, u_opt, solver_time)
+    
+    return traj_opt
+
 
     
 
