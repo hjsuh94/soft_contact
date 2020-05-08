@@ -1,0 +1,59 @@
+import simulator
+import numpy as np
+import matplotlib.pyplot as plt
+import time, os, sys
+
+from pydrake.solvers.mathematicalprogram import MathematicalProgram, Solve
+from pydrake.all import eq, le, ge
+from pydrake.solvers.ipopt import IpoptSolver
+from pydrake.solvers.snopt import SnoptSolver
+
+sys.path.insert(0,os.getcwd())
+from common.trajectory import Trajectory
+from common.utils import snopt_status
+
+def LCPtrajopt(sim, xi, xf, T, options=None):
+    '''
+    Function that does trajectory optimization with LCP approaches.
+    
+    Options should be a dictionary containing the following:
+    - initial_guess : initial guess to be used (Trajectory class)
+    - tol           : tolerance for lcp inequality constraint (semipositive float). Default 0.0
+    - solver        : solver to be used. Support "snopt" or "ipopt", default is "snopt"
+    - contact_max   : maximum value for contact. Defaults to None (unbounded). 
+    - input_max     : maximum value for input. Defaults to None (unbounded).
+    '''
+
+    ''' Helper fUnctions '''
+    def pack_trajectory(sim, q_traj, v_traj, f_traj, u_traj, compute_time):
+        '''
+        Pack trajectory from q,v,f,u to Trajectory class
+        '''
+        T = u_traj.shape[0]
+        x_traj = np.hstack((q_traj, v_traj))
+        traj = Trajectory(sim, T, x_traj, f_traj, u_traj, compute_time)
+        return traj
+
+    def unpack_trajectory(sim, traj):
+        '''
+        Unpack trajectory from trajectory class to q,v,f,u notation
+        '''
+        x_traj = traj.x_traj
+        q_traj = x_traj[:,0:sim.nq]
+        v_traj = x_traj[:,sim.nq:(2*sim.nq)]
+        f_traj = traj.f_traj
+        u_traj = traj.u_traj
+        return q_traj, v_traj, f_traj, u_traj
+
+    def generate_initial_traj(sim, xi, xf, T)
+        '''
+        Use default initial guess with stationary assumption
+        '''
+        qinit = np.tile(np.array(xi[0:sim.nq]), (T + 1, 1))
+        vinit = np.tile(np.array(xi[sim.nq:(2*sim.nq)]), (T + 1, 1))
+        uinit = np.tile(np.array([0] * sim.nu), (T, 1))
+        finit = np.tile(np.array([0] * sim.nf), (T, 1))
+
+        traj = pack_trajectory(sim, qinit, vinit, uinit, finit, None)
+        return traj
+
