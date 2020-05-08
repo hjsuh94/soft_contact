@@ -30,7 +30,7 @@ class CartSimulator():
         self.nf = 2
         
         self.params = {'m': 1.,  # mass
-                       'c': 3.0,  # viscosity
+                       'c': 2.0,  # viscosity
                        'k': 30.0,  # elasticity
                        'd': 0.5,    # cart length
                        'w': 0.5,    # cart height (just for visualization) 
@@ -119,7 +119,7 @@ class CartSimulator():
 
         return Trajectory(self, T, x_traj, f_traj, u_traj, compute_time = compute_time)
 
-    def animate(self, traj, video_name="run.avi", frame_rate=300.):
+    def animate(self, traj, video_name="run_cart.avi", frame_rate=300.):
         '''
         Animates the trajectory with gui and video. 
         Inputs:
@@ -193,7 +193,7 @@ class CartSimulator():
         self.img_array.append(cv_image)
 
     def save_video(self, video_name, frame_rate):
-        out = cv2.VideoWriter(video_name, cv2.VideoWriter_fourcc(*'MJPG'), 100,
+        out = cv2.VideoWriter(video_name, cv2.VideoWriter_fourcc(*'MJPG'), frame_rate,
                               (self.width, self.height))
         for i in range(len(self.img_array)):
             out.write(self.img_array[i])

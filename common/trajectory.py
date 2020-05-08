@@ -55,10 +55,12 @@ class Trajectory():
         for i in range(self.sim.nv):
             plt.plot(range(self.T+1), self.x_traj[:,self.sim.nq + i])
             
+        
         plt.subplot(2,2,3)
-        plt.title('System Forces')
-        for i in range(self.sim.nf):
-            plt.plot(range(self.T), self.f_traj[:,i])
+        if (self.f_traj is not None):
+            plt.title('System Forces')
+            for i in range(self.sim.nf):
+                plt.plot(range(self.T), self.f_traj[:,i])
             
         plt.subplot(2,2,4)
         plt.title('System Inputs')

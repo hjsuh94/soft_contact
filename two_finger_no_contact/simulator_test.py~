@@ -1,0 +1,19 @@
+from simulator import FingerSimulator
+import numpy as np
+import sys, os
+
+sys.path.insert(0, os.getcwd())
+from common.trajectory import Trajectory
+
+A = FingerSimulator()
+
+T = 500
+init_state = np.array([250e-3, 200e-3, 0.0, np.pi/2, -np.pi/2, np.pi/2, np.pi/2,
+                       0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0])
+
+u = -0.001 * np.ones((500,4))
+
+Traj = A.rollout(init_state, u)
+A.animate(Traj)
+
+

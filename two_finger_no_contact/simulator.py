@@ -11,11 +11,10 @@ from common.trajectory import Trajectory
 
 class FingerSimulator():
     '''
-    Finger Simulator. 
+    Finger Simulator without contact. 
 
-    State definition: [qx_b, qy_b, theta_b, q1_l, q2_l, q2_r, q2_r]
+    State definition: [q1_l, q2_l, q2_r, q2_r]
     Input definition: [u1_l, u2_l, u1_r, u2_r]
-    Force definition: [fx_l, fy_l, fx_r, fy_r]
 
     where _b subscript denotes ball coordinates (SE(2) pose and velocity)
           _l subscript denotes left manipulator coordinate (joint position and velocity)
@@ -28,10 +27,10 @@ class FingerSimulator():
 
         self.gui = gui
 
-        self.nq = 7
-        self.nv = 7 # Alias for self.nq
+        self.nq = 4
+        self.nv = 4 # Alias for self.nq
         self.nu = 4
-        self.nf = 4 
+        self.nf = 0
 
         # follows SI units
         self.params = {'m': 0.1,  # mass of each finger
@@ -159,56 +158,30 @@ class FingerSimulator():
 
         return np.squeeze(M), np.squeeze(C)
 
-    def compute_contact(self, x):
-        '''
-        Computes contact forces from the current states. Both state and configuration
-        as input is supported.
-        '''
-        #x, y, theta, q1_l, q2_l, q1_r, q2_r = x[0:self.nq]
-        
-        x_b, x_l, x_r = self.unpack_states(x)
-
-        pl = self.fkin(x_l, 'l2')
-        pr = self.fkin(x_r, 'r2')
-        pb = x_b[0:2]
-
-        dist_l = np.linalg.norm(pl - pb, 2)
-        dist_r = np.linalg.norm(pr - pb, 2)
-
-        # Note: these contact forces are applied on the ball. Take negative to apply to finger.
-        lambda_l = -self.params['k'] * ((pl - pb) / dist_l) * \
-                   np.maximum(self.params['R'] + self.params['r'] - dist_l, 0)
-        lambda_r = -self.params['k'] * ((pr - pb) / dist_r) * \
-                   np.maximum(self.params['R'] + self.params['r'] - dist_r, 0)
-
-        return np.concatenate((lambda_l, lambda_r))
-
     def unpack_states(self, x):
         '''
         Unpack the total state of the system to decoupled representation.
         Returns state of body, state of left finger, state of right finger.
         '''
 
-        px_b, py_b, theta_b, q1_l, q2_l, q1_r, q2_r = x[0:self.nq]
-        vx_b, vy_b, omega_b, q1dot_l, q2dot_l, q1dot_r, q2dot_r = x[self.nq:(2*self.nq)]
+        q1_l, q2_l, q1_r, q2_r = x[0:self.nq]
+        q1dot_l, q2dot_l, q1dot_r, q2dot_r = x[self.nq:(2*self.nq)]
 
-        x_b = np.array([px_b, py_b, theta_b, vx_b, vy_b, omega_b])
         x_l = np.array([q1_l, q2_l, q1dot_l, q2dot_l])
         x_r = np.array([q1_r, q2_r, q1dot_r, q2dot_r])
 
-        return x_b, x_l, x_r
+        return x_l, x_r
 
-    def pack_states(self, x_b, x_l, x_r):
+    def pack_states(self, x_l, x_r):
         ''' 
         Packs decoupled states of individual bodies into total system state-space.
         Argument works from state of body, left finger, right finger
         '''
-        px_b, py_b, theta_b, vx_b, vy_b, omega_b = x_b
         q1_l, q2_l, q1dot_l, q2dot_l = x_l
         q1_r, q2_r, q1dot_r, q2dot_r = x_r
 
-        x = np.array([px_b, py_b, theta_b, q1_l, q2_l, q1_r, q2_r,
-                      vx_b, vy_b, omega_b, q1dot_l, q2dot_l, q1dot_r, q2dot_r])
+        x = np.array([q1_l, q2_l, q1_r, q2_r,
+                      q1dot_l, q2dot_l, q1dot_r, q2dot_r])
 
         return x
 
@@ -228,45 +201,31 @@ class FingerSimulator():
 
         # Unpack Joints and torques--------------------------------------------
         
-        x_b, x_l, x_r = self.unpack_states(x)
+        x_l, x_r = self.unpack_states(x)
         tau1_l, tau2_l, tau1_r, tau2_r = u
 
         # Compute contact forces------------------------------------------------
-        contact = self.compute_contact(x)
 
-        lambda_l = contact[0:int(self.nf/2)]
-        lambda_r = contact[int(self.nf/2):self.nf]
-
-        # Propagate Velocities--------------------------------------------------
-
-        # Update manipuland velocity
-        x_b[3:5] += self.params['h'] * (1. / self.params['mb']) * (
-            lambda_l + lambda_r - self.params['cb'] * x_b[3:5])
-        x_b[5] += self.params['h'] * (1./self.params['Ib']) * 0.
-        
         # Update left manipulator velocity
         Ml, Cl = self.manipulator_params(x_l)
         Jl = self.jacobian(x_l)
 
         x_l[2:4] += self.params['h'] * np.linalg.inv(Ml).dot(
-            -np.dot(Cl, x_l[2:4]) + np.array([tau1_l, tau2_l])
-            -np.dot(np.transpose(Jl), lambda_l))
+            -np.dot(Cl, x_l[2:4]) + np.array([tau1_l, tau2_l]))
 
         # Update right manipulator velocity 
         Mr, Cr = self.manipulator_params(x_r)
         Jr = self.jacobian(x_r)
         x_r[2:4] += self.params['h'] * np.linalg.inv(Mr).dot(
-            -np.dot(Cr, x_r[2:4]) + np.array([tau1_r, tau2_r])
-            -np.dot(np.transpose(Jr), lambda_r))
+            -np.dot(Cr, x_r[2:4]) + np.array([tau1_r, tau2_r]))
 
         # Propagate positions---------------------------------------------------
-        x_b[0:3] += self.params['h'] * x_b[3:6]
         x_l[0:2] += self.params['h'] * x_l[2:4]
         x_r[0:2] += self.params['h'] * x_r[2:4]
 
         # Repack states and return----------------------------------------------
 
-        return self.pack_states(x_b, x_l, x_r)
+        return self.pack_states(x_l, x_r)
 
     def rollout(self, initial_state, inputs):
         '''
@@ -281,7 +240,7 @@ class FingerSimulator():
         T = inputs.shape[0]
 
         x_traj = np.zeros((T + 1, 2 * self.nq))
-        f_traj = np.zeros((T, self.nf))
+        f_traj = None
         u_traj = inputs
         init_time = time.time()
 
@@ -289,7 +248,6 @@ class FingerSimulator():
 
         for t in range(T):
             # 1. Compute forces and store them
-            f_traj[t] = self.compute_contact(x_traj[t])
             # 2. Rollout dynamics
             x_traj[t+1] = self.step(x_traj[t], u_traj[t])
 
@@ -364,17 +322,14 @@ class FingerSimulator():
         self.canvas.delete(ALL)
 
         # 1. Unpack states
-        x_b, x_l, x_r = self.unpack_states(x)
+        x_l, x_r = self.unpack_states(x)
 
-        p_b = x_b[0:2]
         pb_l = self.fkin(x_l, 'l0')
         p1_l = self.fkin(x_l, 'l1')
         p2_l = self.fkin(x_l, 'l2')
         pb_r = self.fkin(x_r, 'r0')
         p1_r = self.fkin(x_r, 'r1')
         p2_r = self.fkin(x_r, 'r2')
-
-        self.draw_circle(p_b, self.params['R'], 'black', 'red')
 
         self.draw_line(pb_l, p1_l, 'black')
         self.draw_line(p1_l, p2_l, 'black')
@@ -395,8 +350,6 @@ class FingerSimulator():
 
         image = Image.new("RGB", (self.width, self.height), (255, 255, 255))
         draw = ImageDraw.Draw(image)
-
-        self.draw_circle_image(draw, p_b, self.params['R'], 'black', 'red')
 
         self.draw_line_image(draw, pb_l, p1_l, 'black')
         self.draw_line_image(draw, p1_l, p2_l, 'black')

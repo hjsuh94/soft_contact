@@ -55,7 +55,7 @@ def LCPtrajopt(sim, xi, xf, T, options=None):
         uinit = np.tile(np.array([0,0]), (T, 1))
         finit = np.tile(np.array([0,0]), (T, 1))
 
-        traj = pack_trajectory(sim, qinit, vinit, uinit, finit, None)
+        traj = pack_trajectory(sim, qinit, vinit, finit, uinit, None)
         return traj
         
 
@@ -149,10 +149,23 @@ def LCPtrajopt(sim, xi, xf, T, options=None):
     #---------------------------------------------------------------------------
 
     initial_guess = np.empty(prog.num_vars())
+    
     prog.SetDecisionVariableValueInVector(q, qinit, initial_guess)
     prog.SetDecisionVariableValueInVector(v, vinit, initial_guess)
     prog.SetDecisionVariableValueInVector(u, uinit, initial_guess)
-    #prog.SetDecisionVariableValueInVector(contact, finit, initial_guess)
+    prog.SetDecisionVariableValueInVector(contact, finit, initial_guess)
+
+    # Set alpha and beta to satisfy the equality constraints defined by program
+    alphainit = np.zeros((T,2))
+    alphainit[:,0] = finit[:,0]
+    alphainit[:,1] = finit[:,1]
+
+    betainit = np.zeros((T,2))
+    betainit[:,0] = finit[:,0] + sim.params['k'] * (qinit[t,1] - qinit[t,0] - sim.params['d'])
+    betainit[:,1] = finit[:,1] + sim.params['k'] * (qinit[t,2] - qinit[t,1] - sim.params['d'])
+    
+    prog.SetDecisionVariableValueInVector(alpha, alphainit, initial_guess)
+    prog.SetDecisionVariableValueInVector(beta, betainit, initial_guess)    
 
     #---------------------------------------------------------------------------
     # 4. Solve the program
@@ -183,10 +196,12 @@ def LCPtrajopt(sim, xi, xf, T, options=None):
     # 5. Pack the solution and return trajectory.
     #---------------------------------------------------------------------------
 
+    sol = result.GetSolution()
     q_opt = result.GetSolution(q)
     v_opt = result.GetSolution(v)
     f_opt = result.GetSolution(contact)    
     u_opt = result.GetSolution(u)
+
     traj_opt = pack_trajectory(sim, q_opt, v_opt, f_opt, u_opt, solver_time)
     
     return traj_opt
