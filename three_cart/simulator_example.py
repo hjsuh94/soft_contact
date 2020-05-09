@@ -1,8 +1,9 @@
 import simulator
 import numpy as np
 import matplotlib.pyplot as plt
-from ctrl_lcp import LCPtrajopt
-from ctrl_smooth import Smoothtrajopt
+# from ctrl_lcp import LCPtrajopt
+# from ctrl_smooth import Smoothtrajopt
+from ctrl_sgd import SGDtrajopt
 
 C = simulator.CartSimulator()
 x = [2,3,4,0,0,0]
@@ -22,6 +23,15 @@ smooth_options = {
     'contact_max': None,
     'input_max': None}
 
+sgd_options = {
+	'initial_guess': None,
+	'lr': None,
+	'epochs': None,
+	'u_lambda': None,
+	'params': None,
+	'input_max': None}
+
+
 traj = None
 sol = None
 '''
@@ -33,27 +43,36 @@ for i in range(len(tol_list)):
     traj = LCPtrajopt(C, x, xd, 500, lcp_options)
     print(traj.compute_time)
 '''
-tol_list = [1e-3, 1e-4, 1e-5]
+# # tol_list = [1e-3, 1e-4, 1e-5]
 
-for i in range(len(tol_list)):
-    smooth_options['tol'] = tol_list[i]
-    smooth_options['initial_guess'] = traj
-    traj = Smoothtrajopt(C, x, xd, 500, smooth_options)
-    print(traj.compute_time)
+# for i in range(len(tol_list)):
+#     smooth_options['tol'] = tol_list[i]
+#     smooth_options['initial_guess'] = traj
+#     traj = Smoothtrajopt(C, x, xd, 500, smooth_options)
+#     print(traj.compute_time)
+
+
+# inputs = np.ones((500, 2))
+# inputs[:, 1] = -1
+
+
+# traj = C.rollout(x, inputs)
+
+traj = SGDtrajopt(C, x, xd, 500, sgd_options)
+
     
-#traj.plot()
+# traj.plot()
 #C.animate(traj)
 
-lcp_options['tol'] = 0.0
-lcp_options['initial_guess'] = traj
-print(lcp_options)
-traj = LCPtrajopt(C, x, xd, 500, lcp_options)
-print(traj.compute_time)
+# lcp_options['tol'] = 0.0
+# lcp_options['initial_guess'] = traj
+# print(lcp_options)
+# traj = LCPtrajopt(C, x, xd, 500, lcp_options)
+# print(traj.compute_time)
 
-
-traj.plot()
+C.animate(traj)
 print(traj.compute_time)
 print(traj.cost)
-C.animate(traj)
+traj.plot()
 
 
