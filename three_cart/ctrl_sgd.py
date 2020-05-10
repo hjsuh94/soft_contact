@@ -26,6 +26,8 @@ def SGDtrajopt(sim, xi, xf, T, options=None):
     # Define helper functions here
     #---------------------------------------------------------------------------
 
+    tolerance = 0.05
+
     # build a tensor graph of forward integration
     def forward(xi, u_traj, T):
         x_traj = [xi]
@@ -75,11 +77,15 @@ def SGDtrajopt(sim, xi, xf, T, options=None):
             optimizer.zero_grad()
             costs[epoch] = cost.data.numpy()
             if False :
-                print('cost: ', '{:.3f}'.format(cost.data.numpy()))
+                print('{:.3f}'.format(cost.data.numpy()), epoch)
+            if (abs(x_traj[-1].detach() - xf)).max() < tolerance :
+                print('Training stops at epoch: ', epoch)
+                break
+
         time_elapsed = time.time() - since
         print('Training lasts {:.0f}m {:.0f}s'.format(time_elapsed // 60, time_elapsed % 60))
 
-        return u_traj, time_elapsed
+        return u_traj, time_elapsed, x_traj[-1].detach()
 
     #---------------------------------------------------------------------------
     # Set default parameters options.
@@ -98,12 +104,12 @@ def SGDtrajopt(sim, xi, xf, T, options=None):
     if options['epochs']:
         epochs = options['epochs']
     else:
-        epochs = 50
+        epochs = 500
 
     if options['u_lambda']:
         u_lambda = options['u_lambda']
     else: 
-        u_lambda = 0.00005
+        u_lambda = 0.000005
 
     if options['input_max']:
         input_max = options['input_max']
@@ -120,7 +126,8 @@ def SGDtrajopt(sim, xi, xf, T, options=None):
     #---------------------------------------------------------------------------
     xi = torch.tensor(xi).view(6, 1).double() # initial state
     xf = torch.tensor(xf).view(6, 1).double() # goal state
-    u_traj, time_elapsed = sgd(xi, xf, u_traj, u_lambda, T, lr, epochs)
+    u_traj, time_elapsed, x_final = sgd(xi, xf, u_traj, u_lambda, T, lr, epochs)
+    print('Final state: ', x_final)
     # plt.plot(range(epochs), costs)
     # plt.show()
 

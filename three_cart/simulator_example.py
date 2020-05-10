@@ -52,17 +52,8 @@ for i in range(len(tol_list)):
 #     print(traj.compute_time)
 
 
-# inputs = np.ones((500, 2))
-# inputs[:, 1] = -1
-
-
-# traj = C.rollout(x, inputs)
-
 traj = SGDtrajopt(C, x, xd, 500, sgd_options)
 
-    
-# traj.plot()
-#C.animate(traj)
 
 # lcp_options['tol'] = 0.0
 # lcp_options['initial_guess'] = traj
