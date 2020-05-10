@@ -74,12 +74,12 @@ def SGDtrajopt(sim, xi, xf, T, options=None):
             optimizer.step()
             optimizer.zero_grad()
             costs[epoch] = cost.data.numpy()
-            if True :
+            if False :
                 print('cost: ', '{:.3f}'.format(cost.data.numpy()))
         time_elapsed = time.time() - since
-        print('Training takes in {:.0f}m {:.0f}s'.format(time_elapsed // 60, time_elapsed % 60))
+        print('Training lasts {:.0f}m {:.0f}s'.format(time_elapsed // 60, time_elapsed % 60))
 
-        return costs
+        return u_traj, time_elapsed
 
     #---------------------------------------------------------------------------
     # Set default parameters options.
@@ -93,7 +93,7 @@ def SGDtrajopt(sim, xi, xf, T, options=None):
     if options['lr']:
         lr = options['lr']
     else:
-        lr = 50
+        lr = 500
 
     if options['epochs']:
         epochs = options['epochs']
@@ -103,7 +103,7 @@ def SGDtrajopt(sim, xi, xf, T, options=None):
     if options['u_lambda']:
         u_lambda = options['u_lambda']
     else: 
-        u_lambda = 0.000005
+        u_lambda = 0.00005
 
     if options['input_max']:
         input_max = options['input_max']
@@ -112,6 +112,7 @@ def SGDtrajopt(sim, xi, xf, T, options=None):
 
     if options['params']:
         for key, value in options['params'].items():
+            print(key, value)
             sim.set_parameters(key, value)
 
     #---------------------------------------------------------------------------
@@ -119,11 +120,14 @@ def SGDtrajopt(sim, xi, xf, T, options=None):
     #---------------------------------------------------------------------------
     xi = torch.tensor(xi).view(6, 1).double() # initial state
     xf = torch.tensor(xf).view(6, 1).double() # goal state
-    costs = sgd(xi, xf, u_traj, u_lambda, T, lr, epochs)
+    u_traj, time_elapsed = sgd(xi, xf, u_traj, u_lambda, T, lr, epochs)
     # plt.plot(range(epochs), costs)
     # plt.show()
 
-    return sim.rollout(xi.flatten().numpy(), u_traj.detach().numpy().T)
+    traj = sim.rollout(xi.flatten().numpy(), u_traj.detach().numpy().T)
+    traj.compute_time = time_elapsed
+
+    return traj
 
 
 

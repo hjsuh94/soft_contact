@@ -35,7 +35,7 @@ class CartSimulator():
                        'd': 0.5,    # cart length
                        'w': 0.5,    # cart height (just for visualization) 
                        'h': 0.01,   # time step
-                       't': 0.0}   # sleep time before redrawing on canvas
+                       't': 0.005}   # sleep time before redrawing on canvas
         
 
     def set_parameter(self, param_name, param_value):

@@ -6,7 +6,7 @@ import matplotlib.pyplot as plt
 from ctrl_sgd import SGDtrajopt
 
 C = simulator.CartSimulator()
-x = [2,3,4,0,0,0]
+x = [1,3,4,0,0,0]
 xd = [1.5,2.5,3.5,0,0,0]
 
 lcp_options = {
